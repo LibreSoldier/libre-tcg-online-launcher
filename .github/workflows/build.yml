@@ -1,0 +1,74 @@
+# Builds the Windows and Linux executables and attaches them to the release.
+# Runs when a release is published (or manually, to test a build without a release).
+name: Build executables
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+          - os: ubuntu-22.04  # older glibc, so the binary also runs on older distros
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller pillow
+          python -c "import tkinter; print('Tk', tkinter.TkVersion)"
+
+      - name: Build
+        run: |
+          python -m PyInstaller --noconfirm --onefile --windowed \
+            --name LibreTCGOnlineLauncher \
+            --icon logo.png \
+            --add-data "logo.png${{ matrix.platform == 'windows' && ';' || ':' }}." \
+            launcher_proto.py
+
+      - name: Package
+        id: package
+        run: |
+          VERSION="${{ github.event.release.tag_name || 'dev' }}"
+          NAME="LibreTCGOnlineLauncher-${VERSION}-${{ matrix.platform }}"
+          mkdir "$NAME"
+          cp dist/LibreTCGOnlineLauncher* LICENSE NOTICE.md README.md "$NAME"/
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            7z a "$NAME.zip" "$NAME" > /dev/null
+            echo "file=$NAME.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar -czf "$NAME.tar.gz" "$NAME"
+            echo "file=$NAME.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Keep build as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: ${{ steps.package.outputs.file }}
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: ${{ steps.package.outputs.file }}

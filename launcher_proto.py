@@ -38,6 +38,7 @@ import zlib
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+APP_VERSION = "1.1"
 BASE_NAME = "Libre's TCG Online Launcher"  # shown until the game is found
 GAME_NAME = "PTCGO Launcher"                # shown once the user's own PTCGO copy is found
 APP_NAME = BASE_NAME                        # current display name (dialog titles read it at call time)
@@ -1259,6 +1260,7 @@ class SettingsDialog:
         btns.grid(row=4, column=0, sticky="ew", pady=(8, 0))
         self.btn_restore = ttk.Button(btns, text="Restore original cake.cfg", command=self.restore)
         self.btn_restore.pack(side="left")
+        ttk.Label(btns, text=f"{BASE_NAME} v{APP_VERSION}", foreground="#888").pack(side="left", padx=12)
         ttk.Button(btns, text="Save", command=self.save).pack(side="right")
         ttk.Button(btns, text="Cancel", command=win.destroy).pack(side="right", padx=6)
         self.check()

@@ -26,13 +26,25 @@ the launcher rewrites the connection lines of the game's `cake.cfg` and starts t
 
 ## Requirements
 
-- **Python 3.10 or newer** with Tk (standard library only, no extra packages)
+- To run from source: **Python 3.10 or newer** with Tk (standard library only, no extra packages)
 - **Pokémon TCG Online 2.95.0.5815**, installed:
   - **Windows**: normal installation
   - **Linux**: in a Wine prefix (plain Wine or Lutris)
   - **macOS**: the `.app` (untested)
 
-## How to run
+## Download
+
+Get the latest version from the [Releases](../../releases) page:
+
+| System | File | How to run |
+|---|---|---|
+| **Windows** | `LibreTCGOnlineLauncher-<version>-windows.zip` | Extract and run `LibreTCGOnlineLauncher.exe`. If SmartScreen warns about an unknown publisher, click **More info → Run anyway** (the executable is not code-signed). |
+| **Linux** | `LibreTCGOnlineLauncher-<version>-linux.tar.gz` | Extract and run `./LibreTCGOnlineLauncher` |
+| **macOS** | not available yet | run from source (below) |
+
+No Python installation is needed for the executables.
+
+## Run from source
 
 | System | Setup | Run |
 |---|---|---|
