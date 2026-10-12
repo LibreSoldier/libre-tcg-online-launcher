@@ -637,7 +637,7 @@ class LauncherApp:
         if len(found) == 1:
             self.settings.data["game_path"] = str(found[0])
             self.settings.save()
-            self._status(f"Game found automatically: {found[0]}")
+            self._status("Game found automatically - see Settings… for details.")
         elif found:
             self._status(f"{len(found)} PTCGO installs found - pick one in Settings…")
         else:
@@ -769,8 +769,9 @@ class LauncherApp:
         ttk.Label(fb, text="Order = fallback priority. FB = included in fallback. Double-click a row to select it.",
                   foreground="#666").grid(row=2, column=0, sticky="w", pady=(4, 0))
 
-        self.statusbar = ttk.Label(main, text="", foreground="#444")
-        self.statusbar.grid(row=6, column=0, sticky="w", pady=(6, 0))
+        # width=1: long messages (e.g. file paths) are clipped instead of widening the window
+        self.statusbar = ttk.Label(main, text="", foreground="#444", width=1)
+        self.statusbar.grid(row=6, column=0, sticky="ew", pady=(6, 0))
 
     def _dot_image(self, color, size=14):
         """Filled circle image; unlike tag colors it stays visible on selected rows."""
