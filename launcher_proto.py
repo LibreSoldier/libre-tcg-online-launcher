@@ -38,7 +38,7 @@ import zlib
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-APP_VERSION = "1.1"
+APP_VERSION = "1.2"
 BASE_NAME = "Libre's TCG Online Launcher"  # shown until the game is found
 GAME_NAME = "PTCGO Launcher"                # shown once the user's own PTCGO copy is found
 APP_NAME = BASE_NAME                        # current display name (dialog titles read it at call time)
