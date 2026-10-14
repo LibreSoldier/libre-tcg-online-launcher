@@ -93,7 +93,6 @@ CAKE_TEMPLATE = (
 CFG_KEYS = ("hostname", "versionURL", "assetURL")
 GAME_TCP_PORT = 39389
 PROBE_TIMEOUT = 2.0
-NEW_SERVER = "(new server)"
 UNNAMED = "Unnamed Server"
 
 STATUS_STYLE = {  # status -> (color, short label, long label)
@@ -619,11 +618,12 @@ class LauncherApp:
         self.auto_urls = ("", "")  # last auto-filled (versionURL, assetURL)
 
         self._icon_path = self._icon_img = None
+        self.current_name = None  # saved server shown in the form (None = new server)
         root.title(APP_NAME)
         root.minsize(640, 0)
         self._build()
         self._refresh_server_lists()
-        self._select(self.store.servers[0]["name"] if self.store.servers else NEW_SERVER)
+        self._select(self.store.servers[0]["name"] if self.store.servers else None)
         self.root.after(100, self._drain_events)
         self.root.after(30000, self._tick)
         self._first_run_detect()
@@ -694,14 +694,15 @@ class LauncherApp:
         self.combo = ttk.Combobox(top, state="readonly")
         self.combo.grid(row=0, column=0, sticky="ew")
         self.combo.bind("<<ComboboxSelected>>", lambda e: self._select(self.combo.get()))
+        ttk.Button(top, text="+ Add Server", command=self.add_server).grid(row=0, column=1, padx=(6, 0))
         self.dot = tk.Label(top, text="●", font=("TkDefaultFont", 14))
-        self.dot.grid(row=0, column=1, padx=(8, 2))
+        self.dot.grid(row=0, column=2, padx=(8, 2))
         self.status_lbl = ttk.Label(top, width=24)
-        self.status_lbl.grid(row=0, column=2, sticky="w")
+        self.status_lbl.grid(row=0, column=3, sticky="w")
         self.last_lbl = ttk.Label(top, text="Last Played: -")
-        self.last_lbl.grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        self.last_lbl.grid(row=1, column=0, columnspan=4, sticky="w", pady=(4, 0))
         self.game_lbl = ttk.Label(top, text="Game: -")
-        self.game_lbl.grid(row=2, column=0, columnspan=3, sticky="w", pady=(2, 0))
+        self.game_lbl.grid(row=2, column=0, columnspan=4, sticky="w", pady=(2, 0))
 
         # Connection fields
         conn = ttk.LabelFrame(main, text="Connection", padding=8)
@@ -759,14 +760,15 @@ class LauncherApp:
             self.tree.heading(col, text=title)
             self.tree.column(col, width=width, anchor="w", stretch=col in ("name", "host"))
         self.tree.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
-        self.tree.bind("<Double-1>", lambda e: self._select(self.tree.selection()[0])
-                       if self.tree.selection() else None)
+        # Click = select the server (same as Saved Servers); double-click = connect to it.
+        self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
+        self.tree.bind("<Double-1>", self._on_tree_double_click)
         side = ttk.Frame(fb)
         side.grid(row=1, column=1, sticky="n", padx=(6, 0), pady=(6, 0))
         ttk.Button(side, text="▲", width=3, command=lambda: self._move(-1)).pack()
         ttk.Button(side, text="▼", width=3, command=lambda: self._move(1)).pack(pady=(4, 0))
         ttk.Button(side, text="Use FB", command=self._toggle_include).pack(pady=(4, 0))
-        ttk.Label(fb, text="Order = fallback priority. FB = included in fallback. Double-click a row to select it.",
+        ttk.Label(fb, text="Order = fallback priority. FB = included in fallback. Click to select, double-click to connect.",
                   foreground="#666").grid(row=2, column=0, sticky="w", pady=(4, 0))
 
         # width=1: long messages (e.g. file paths) are clipped instead of widening the window
@@ -785,20 +787,17 @@ class LauncherApp:
 
     # ---------- state helpers ----------
     def _current_saved(self):
-        name = self.combo.get()
-        return None if name == NEW_SERVER else self.store.find(name)
+        return self.store.find(self.current_name) if self.current_name else None
 
     def _refresh_server_lists(self):
-        self.combo["values"] = [NEW_SERVER] + [s["name"] for s in self.store.servers]
-        selected = self.tree.selection()
+        self.combo["values"] = [s["name"] for s in self.store.servers]
         self.tree.delete(*self.tree.get_children())
         for s in self.store.servers:
             st = self.status.get(s["name"])
             self.tree.insert("", "end", iid=s["name"], image=self.dots[st], values=(
                 "✓" if s.get("fallback", True) else "✗", s["name"], s["hostname"],
                 STATUS_STYLE[st][1], relative_time(s.get("last_played"))))
-        if selected and self.tree.exists(selected[0]):
-            self.tree.selection_set(selected[0])
+        self._sync_tree_selection()
         self._refresh_header()
         if hasattr(self, "game_lbl"):
             self._refresh_game_line()
@@ -816,9 +815,39 @@ class LauncherApp:
         for entry in self.entries.values():
             entry.configure(state="normal" if editable else "readonly")
 
+    def _sync_tree_selection(self):
+        """Mirrors the current server in the Fallback list (and clears it for a new server)."""
+        if self.current_name and self.tree.exists(self.current_name):
+            if self.tree.selection() != (self.current_name,):
+                self.tree.selection_set(self.current_name)
+            self.tree.see(self.current_name)
+        elif self.tree.selection():
+            self.tree.selection_set(())
+
+    def _on_tree_select(self, _event=None):
+        sel = self.tree.selection()
+        if sel and sel[0] != self.current_name:
+            self._select(sel[0])
+
+    def _on_tree_double_click(self, event):
+        row = self.tree.identify_row(event.y)
+        if not row:
+            return
+        if row != self.current_name:
+            self._select(row)
+        self.connect()
+
+    def add_server(self):
+        self._select(None)
+        self.entries["hostname"].focus_set()
+        self._status("New server: fill in hostname (Name is optional) and Save, or Connect directly.")
+
     def _select(self, name):
-        saved = self.store.find(name) if name != NEW_SERVER else None
-        self.combo.set(saved["name"] if saved else NEW_SERVER)
+        """Shows a saved server (name) or an empty form for a new one (None)."""
+        saved = self.store.find(name) if name else None
+        self.current_name = saved["name"] if saved else None
+        self.combo.set(self.current_name or "")
+        self._sync_tree_selection()
         self.editing = False
         self.btn_edit.configure(text="Edit")
         for key in ("name",) + CFG_KEYS:
@@ -955,7 +984,7 @@ class LauncherApp:
             self.status.pop(saved["name"], None)
             self.store.save()
             self._refresh_server_lists()
-            self._select(NEW_SERVER)
+            self._select(None)
             self._status(f"Deleted '{saved['name']}'.")
 
     def connect(self):
@@ -1076,7 +1105,7 @@ class LauncherApp:
         if "hostname" not in found:
             messagebox.showerror(APP_NAME, f"{source} has no 'hostname=' line.", parent=parent or self.root)
             return False
-        self._select(NEW_SERVER)
+        self._select(None)
         self.vars["hostname"].set(found["hostname"])  # triggers URL suggestions
         for key in ("versionURL", "assetURL"):
             if found.get(key):
